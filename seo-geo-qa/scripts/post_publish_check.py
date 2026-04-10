@@ -146,46 +146,125 @@ def run_seomator(url: str, categories: list[str] | None = None) -> dict:
 def _parse_seomator_llm(raw: str) -> dict:
     """Parse seomator --format llm XML output into a summary dict.
 
-    The LLM format is a compact XML optimized for token efficiency.
-    We extract score, grade, category scores, and top failures.
+    Actual format (verified against live output):
+      <seo-audit url="..." score="94" grade="A" pages="1" date="...">
+        <summary passed="203" warnings="44" failures="4"/>
+        <categories>
+          <cat id="core" score="100" p="19" w="0" f="0"/>
+          ...
+        </categories>
+        <issues>
+          <issue severity="critical" rule="..." cat="...">
+            <msg>Human-readable message</msg>
+            <fix>Suggested fix</fix>
+          </issue>
+          <issue severity="warning" rule="..." cat="...">...</issue>
+        </issues>
+      </seo-audit>
+
+    Score/grade are attributes on <seo-audit>, not child elements.
+    Counts come from <summary> attributes.
+    Categories use <cat id="..." score="...">.
+    Issues use severity="critical"|"warning", with <msg> child.
     """
-    summary: dict = {"raw": raw, "score": None, "grade": None,
+    summary: dict = {"score": None, "grade": None,
                      "fail_count": 0, "warn_count": 0,
                      "top_fails": [], "categories": {}}
 
-    # Overall score: <score>82</score> or <overall-score>82</overall-score>
-    m = re.search(r"<(?:overall-)?score>(\d+)</(?:overall-)?score>", raw)
+    # Score and grade — attributes on <seo-audit ...>
+    m = re.search(r'<seo-audit\b[^>]*\bscore="(\d+)"', raw)
     if m:
         summary["score"] = int(m.group(1))
 
-    # Grade: <grade>B</grade>
-    m = re.search(r"<grade>([A-F][+-]?)</grade>", raw, re.IGNORECASE)
+    m = re.search(r'<seo-audit\b[^>]*\bgrade="([A-F][+-]?)"', raw, re.IGNORECASE)
     if m:
         summary["grade"] = m.group(1).upper()
 
-    # Category scores: <category name="core" score="90">
-    for cat_m in re.finditer(r'<category[^>]+name=["\']([^"\']+)["\'][^>]+score=["\'](\d+)["\']', raw):
+    # Counts — attributes on <summary .../>
+    m = re.search(r'<summary\b[^>]*\bfailures="(\d+)"', raw)
+    if m:
+        summary["fail_count"] = int(m.group(1))
+
+    m = re.search(r'<summary\b[^>]*\bwarnings="(\d+)"', raw)
+    if m:
+        summary["warn_count"] = int(m.group(1))
+
+    # Category scores — <cat id="core" score="100" .../>
+    for cat_m in re.finditer(r'<cat\s+id="([^"]+)"\s+score="(\d+)"', raw):
         summary["categories"][cat_m.group(1)] = int(cat_m.group(2))
-    # Also handle: <category name="core"><score>90</score>
-    for cat_m in re.finditer(r'<category[^>]+name=["\']([^"\']+)["\'][^>]*>.*?<score>(\d+)</score>', raw, re.DOTALL):
-        if cat_m.group(1) not in summary["categories"]:
-            summary["categories"][cat_m.group(1)] = int(cat_m.group(2))
 
-    # Fail items: <issue status="fail">...</issue>
-    fail_items = re.findall(r'<issue[^>]+status=["\']fail["\'][^>]*>(.*?)</issue>', raw, re.DOTALL | re.IGNORECASE)
-    summary["fail_count"] = len(fail_items)
-    # Clean and keep top 10
-    summary["top_fails"] = [re.sub(r"<[^>]+>", "", f).strip() for f in fail_items[:10]]
+    # Top critical failures — extract <msg> from severity="critical" issues
+    critical_msgs = re.findall(
+        r'<issue\b[^>]*\bseverity="critical"[^>]*>.*?<msg>(.*?)</msg>',
+        raw, re.DOTALL
+    )
+    summary["top_fails"] = [re.sub(r"<[^>]+>", "", m).strip() for m in critical_msgs[:10]]
 
-    # Warn items
-    warn_items = re.findall(r'<issue[^>]+status=["\']warn["\'][^>]*>(.*?)</issue>', raw, re.DOTALL | re.IGNORECASE)
-    summary["warn_count"] = len(warn_items)
-
-    # Remove raw from summary to keep output clean (it's large)
-    del summary["raw"]
-    summary["_raw_available"] = True  # signal that raw was captured but omitted
-
+    summary["_raw_available"] = True
     return summary
+
+
+# ── Layer 1b: False-positive filter ─────────────────────────────────────────
+
+# Patterns that seomator flags as broken links but are actually valid.
+# Each entry: (url_pattern, human_readable_explanation)
+_KNOWN_FP_URL_PATTERNS = [
+    ("/cdn-cgi/l/email-protection", "Cloudflare Email Obfuscation — real email address, rendered by browser JS"),
+    ("/cdn-cgi/l/", "Cloudflare CDN internal path — not a real navigable URL"),
+]
+
+# Seomator rule IDs whose failures should be cross-checked for false positives.
+_FP_CANDIDATE_RULES = {"links-broken-internal", "links-broken-external"}
+
+
+def check_false_positives(html: str, seomator_result: dict) -> dict:
+    """Cross-check seomator broken-link failures against known false-positive patterns.
+
+    Some tools report valid URLs as broken because they cannot execute JavaScript
+    or resolve CDN-level rewrites. This function detects those cases and returns
+    annotations so the final report can clearly distinguish real errors from
+    tool limitations.
+
+    Returns:
+        {
+          "detected": [{"pattern": str, "count": int, "explanation": str}],
+          "suppressed_issues": [str],   # top_fails entries confirmed as false positives
+          "note": str | None            # human-readable summary
+        }
+    """
+    result: dict = {"detected": [], "suppressed_issues": [], "note": None}
+
+    if not html:
+        return result
+
+    suppressed: list[str] = []
+
+    for pattern, explanation in _KNOWN_FP_URL_PATTERNS:
+        count = html.count(pattern)
+        if count == 0:
+            continue
+        result["detected"].append({"pattern": pattern, "count": count, "explanation": explanation})
+
+        # Suppress seomator top_fails that mention broken internal links when
+        # the broken count plausibly matches the false-positive count.
+        for fail_msg in seomator_result.get("top_fails", []):
+            if "broken internal link" in fail_msg.lower() and fail_msg not in suppressed:
+                # Extract the broken count from the message (e.g. "Found 2 broken...")
+                m = re.search(r"(\d+)", fail_msg)
+                broken_count = int(m.group(1)) if m else -1
+                if broken_count > 0 and broken_count <= count:
+                    suppressed.append(fail_msg)
+
+    if result["detected"]:
+        patterns_desc = "; ".join(f"{d['count']}× {d['pattern']}" for d in result["detected"])
+        result["note"] = (
+            f"Known audit tool limitation detected: {patterns_desc}. "
+            "These URLs are valid in a real browser but appear broken to static auditors "
+            "that cannot execute JavaScript. Suppressed from issue list."
+        )
+        result["suppressed_issues"] = suppressed
+
+    return result
 
 
 # ── Layer 2: Custom checks ───────────────────────────────────────────────────
@@ -389,10 +468,19 @@ def render_markdown(report: dict) -> str:
         if cats:
             cat_str = " | ".join(f"{k}: {v}" for k, v in cats.items())
             lines.append(f"- Categories: {cat_str}")
-        if seo.get("top_fails"):
+        fp = report.get("false_positives", {})
+        suppressed = set(fp.get("suppressed_issues", []))
+        active_fails = [f for f in seo.get("top_fails", []) if f not in suppressed]
+        if active_fails:
             lines.append("- Top failures:")
-            for f in seo["top_fails"]:
+            for f in active_fails:
                 lines.append(f"  - {f}")
+        if suppressed:
+            lines.append("- Suppressed (known tool limitation):")
+            for f in suppressed:
+                lines.append(f"  - ~~{f}~~")
+        if fp.get("note"):
+            lines.append(f"- ⚠ {fp['note']}")
     lines.append("")
 
     # Basic checks
@@ -516,6 +604,10 @@ def main():
                 file=sys.stderr,
             )
 
+    # Layer 1b: False-positive filter (cross-check seomator against known tool limitations)
+    false_positives = check_false_positives(body, seomator_result)
+    suppressed_fails = set(false_positives.get("suppressed_issues", []))
+
     # Layer 2: Custom checks
     custom_checks: dict = {}
     custom_checks["llms_txt"] = check_llms_txt(args.url)
@@ -523,7 +615,7 @@ def main():
     if psi_key:
         custom_checks["pagespeed"] = check_pagespeed(args.url, psi_key)
 
-    # Collect all issues
+    # Collect all issues (excluding confirmed false positives)
     all_issues = list(basic_issues)
     hreflang_issues = custom_checks.get("hreflang", {}).get("issues", [])
     all_issues.extend(hreflang_issues)
@@ -531,7 +623,8 @@ def main():
         all_issues.append("llms.txt not found — AI crawlers have no explicit access signal")
     if seomator_result and not seomator_result.get("_error"):
         for fail in seomator_result.get("top_fails", []):
-            all_issues.append(f"seomator: {fail}")
+            if fail not in suppressed_fails:
+                all_issues.append(f"seomator: {fail}")
 
     # Verdict
     has_critical = any(
@@ -558,6 +651,7 @@ def main():
         "llm_review_required": len(llm_review_items) > 0,
         "llm_review_items": llm_review_items,
         "seomator": seomator_result,
+        "false_positives": false_positives,
         "basic_checks": basic,
         "custom_checks": custom_checks,
         "issues": all_issues,
