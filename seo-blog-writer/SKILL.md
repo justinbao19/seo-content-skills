@@ -1572,7 +1572,7 @@ Word count: 1,847 | Links: 18 external, 3 internal | Score: 67/100 (Express pass
 
 ## Skill Metadata
 
-**Version:** 3.1.0
+**Version:** 3.2.0
 **Dependencies:** web_search, web_fetch, file operations
 **Optional:** browser automation (for JS-heavy sites)
 **Output format:** Markdown + JSON + Schema
