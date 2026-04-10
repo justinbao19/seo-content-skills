@@ -206,30 +206,61 @@ def _parse_seomator_llm(raw: str) -> dict:
 
 # ── Layer 1b: False-positive filter ─────────────────────────────────────────
 
-# Patterns that seomator flags as broken links but are actually valid.
+# Type 1: URL-pattern-based false positives
+# Seomator flags these URLs as broken, but they are valid in a real browser.
 # Each entry: (url_pattern, human_readable_explanation)
 _KNOWN_FP_URL_PATTERNS = [
     ("/cdn-cgi/l/email-protection", "Cloudflare Email Obfuscation — real email address, rendered by browser JS"),
     ("/cdn-cgi/l/", "Cloudflare CDN internal path — not a real navigable URL"),
 ]
 
-# Seomator rule IDs whose failures should be cross-checked for false positives.
-_FP_CANDIDATE_RULES = {"links-broken-internal", "links-broken-external"}
+# Type 2: Rule-based false positives
+# Seomator misreports these due to static analysis limitations.
+# Each entry: rule_id, msg_keyword, detector, explanation
+_KNOWN_FP_RULE_PATTERNS = [
+    {
+        "rule": "a11y-link-text",
+        "msg_keyword": "link text",
+        "explanation": (
+            "Image-only links with non-empty alt text — accessible name is derived from "
+            "<img alt> per WCAG 2.1 Technique H37. Seomator's static analysis does not "
+            "recognise img alt as a valid link accessible name."
+        ),
+    },
+]
+
+
+def _count_image_links_with_alt(html: str) -> int:
+    """Count <a> elements whose only content is an <img> with a non-empty alt attribute.
+
+    These are accessibility-compliant icon links (e.g. social media icons).
+    Their accessible name comes from the img alt, not visible text.
+    """
+    # Match <a …> optionally whitespace + <img … alt="non-empty" …> optionally whitespace </a>
+    # This catches the common icon-link pattern without over-matching.
+    pattern = re.compile(
+        r'<a\b[^>]*>\s*<img\b[^>]*\balt="([^"]+)"[^>]*/?\s*>\s*</a>',
+        re.IGNORECASE | re.DOTALL,
+    )
+    return sum(1 for alt in pattern.findall(html) if alt.strip())
 
 
 def check_false_positives(html: str, seomator_result: dict) -> dict:
-    """Cross-check seomator broken-link failures against known false-positive patterns.
+    """Cross-check seomator failures against known static-analysis limitations.
 
-    Some tools report valid URLs as broken because they cannot execute JavaScript
-    or resolve CDN-level rewrites. This function detects those cases and returns
-    annotations so the final report can clearly distinguish real errors from
-    tool limitations.
+    Two classes of false positives are detected:
+
+    1. URL-pattern FPs — valid URLs that static crawlers cannot resolve
+       (Cloudflare Email Obfuscation, CDN-internal paths, …)
+
+    2. Rule-based FPs — seomator rule limitations that misclassify valid HTML
+       (a11y-link-text on image links with alt text, …)
 
     Returns:
         {
-          "detected": [{"pattern": str, "count": int, "explanation": str}],
+          "detected": [{"type": str, "pattern"/"rule": str, "count": int, "explanation": str}],
           "suppressed_issues": [str],   # top_fails entries confirmed as false positives
-          "note": str | None            # human-readable summary
+          "note": str | None
         }
     """
     result: dict = {"detected": [], "suppressed_issues": [], "note": None}
@@ -239,28 +270,57 @@ def check_false_positives(html: str, seomator_result: dict) -> dict:
 
     suppressed: list[str] = []
 
+    # ── Type 1: URL-pattern false positives ──────────────────────────────────
     for pattern, explanation in _KNOWN_FP_URL_PATTERNS:
         count = html.count(pattern)
         if count == 0:
             continue
-        result["detected"].append({"pattern": pattern, "count": count, "explanation": explanation})
-
-        # Suppress seomator top_fails that mention broken internal links when
-        # the broken count plausibly matches the false-positive count.
+        result["detected"].append({
+            "type": "url-pattern",
+            "pattern": pattern,
+            "count": count,
+            "explanation": explanation,
+        })
         for fail_msg in seomator_result.get("top_fails", []):
             if "broken internal link" in fail_msg.lower() and fail_msg not in suppressed:
-                # Extract the broken count from the message (e.g. "Found 2 broken...")
                 m = re.search(r"(\d+)", fail_msg)
                 broken_count = int(m.group(1)) if m else -1
                 if broken_count > 0 and broken_count <= count:
                     suppressed.append(fail_msg)
 
+    # ── Type 2: Rule-based false positives ───────────────────────────────────
+    for rule_def in _KNOWN_FP_RULE_PATTERNS:
+        rule_id = rule_def["rule"]
+        msg_kw = rule_def["msg_keyword"]
+        explanation = rule_def["explanation"]
+
+        if rule_id == "a11y-link-text":
+            count = _count_image_links_with_alt(html)
+            if count == 0:
+                continue
+            result["detected"].append({
+                "type": "rule-limitation",
+                "rule": rule_id,
+                "count": count,
+                "explanation": explanation,
+            })
+            for fail_msg in seomator_result.get("top_fails", []):
+                if msg_kw in fail_msg.lower() and fail_msg not in suppressed:
+                    m = re.search(r"(\d+)", fail_msg)
+                    flagged_count = int(m.group(1)) if m else -1
+                    if flagged_count > 0 and flagged_count <= count:
+                        suppressed.append(fail_msg)
+
     if result["detected"]:
-        patterns_desc = "; ".join(f"{d['count']}× {d['pattern']}" for d in result["detected"])
+        parts = []
+        for d in result["detected"]:
+            if d["type"] == "url-pattern":
+                parts.append(f"{d['count']}× {d['pattern']}")
+            else:
+                parts.append(f"{d['count']}× [{d['rule']}]")
         result["note"] = (
-            f"Known audit tool limitation detected: {patterns_desc}. "
-            "These URLs are valid in a real browser but appear broken to static auditors "
-            "that cannot execute JavaScript. Suppressed from issue list."
+            f"Known audit tool limitation(s) detected: {', '.join(parts)}. "
+            "Suppressed from issue list — see 'detected' for details."
         )
         result["suppressed_issues"] = suppressed
 
