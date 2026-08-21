@@ -32,12 +32,19 @@ Use an optional JSON config file to set project defaults.
 - `tierADomains` — additional domains to treat as TIER-A (first-party / official)
 - `tierBDomains` — additional domains to treat as TIER-B (reputable secondary)
 - `brandDomains` — domain roots for same-brand redirect detection (e.g., subdomains that should not count as "moved")
-- `psiApiKey` — PageSpeed Insights API key; enables CWV field data (LCP/CLS/INP/FCP/TTFB) in post-publish checks. Leave null to skip CWV. Get a free key at https://developers.google.com/speed/docs/insights/v5/get-started
-- `seomatorCategories` — limit SEOmator audit to specific categories for faster runs (e.g. `["core","technical","schema"]`). Omit for full 20-category audit. Valid values: `core`, `performance`, `links`, `images`, `security`, `technical`, `crawlability`, `schema`, `js`, `accessibility`, `content`, `social`, `eeat`, `url`, `redirects`, `mobile`, `i18n`, `html`, `ai-geo`, `legal`
-- `skipSeomator` — set `true` to disable SEOmator and run custom checks only (useful in environments without Node.js; default: false)
+- `psiApiKey` — PageSpeed Insights API key; enables CWV field data in post-publish checks. Leave null to skip CWV.
+- `seomatorCategories` — limit SEOmator audit to specific categories for faster runs. Omit for the full audit.
+- `skipSeomator` — set `true` to disable SEOmator and run custom checks only.
+
+Domain lists are convenience defaults for automated triage. They do not prove that every
+page on a domain is official. A project using `github.com`, a media network, or a large
+publisher in `tierADomains` should add manual page-level review for leaks, user-generated
+content, copied material, and pages without clear ownership.
 
 ## Notes
 
 - The runner works without config.
 - Keep config small. If your config becomes huge, your process is probably overfitted.
 - Prefer stable project defaults over article-by-article micromanagement.
+- Keep observation metadata (sample scope, denominator, collection method, and limitations)
+  with the report or evidence manifest; do not encode it as a domain allowlist.

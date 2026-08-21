@@ -1,7 +1,7 @@
 ---
 name: seo-geo-qa
 displayName: SEO Content QA
-description: "Check blog posts and articles before publishing, and audit live pages after publishing. Finds broken links, weak sources, missing SEO elements, and citation problems. Post-publish check runs 251 SEO rules via SEOmator CLI and adds custom checks for llms.txt, hreflang, and Core Web Vitals. Use when: reviewing a draft, auditing content quality, checking if links still work, verifying sources are credible, running pre-publish QA, or doing post-publish page checks. Also triggers on: 'check this article', 'verify my links', 'review before publishing', 'content audit', 'source quality check', 'are my links working', 'SEO review', 'pre-publish checklist', 'audit live page', 'check published page'. Generates markdown+JSON reports with PASS/FAIL verdict."
+description: "Check blog posts and articles before publishing, and audit live pages after publishing. Finds broken links, weak sources, evidence-provenance gaps, missing SEO elements, retrieval-readiness issues, and citation problems. Post-publish check runs 251 SEO rules via SEOmator CLI and adds custom checks for llms.txt, hreflang, and Core Web Vitals. Use when: reviewing a draft, auditing content quality, checking if links still work, verifying sources are credible, validating platform-behavior or fanout data, running pre-publish QA, or doing post-publish page checks. Also triggers on: 'check this article', 'verify my links', 'review before publishing', 'content audit', 'source quality check', 'are my links working', 'SEO review', 'GEO review', 'pre-publish checklist', 'audit live page', 'check published page'. Generates markdown+JSON reports with PASS/FAIL verdict."
 tags:
   - seo
   - content-qa
@@ -56,6 +56,33 @@ python3 skills/seo-geo-qa/scripts/seo_qa_runner.py path/to/article.md --keyword 
 4. Fix critical issues first.
 5. Re-run until the article reaches PASS (or REVISE in writer mode).
 6. After publishing, run `post_publish_check.py` on the live URL.
+
+## Evidence and Retrieval QA
+
+The automated runner is a reliability baseline, not proof that a page will be retrieved
+or cited. For every material claim — especially prices, rankings, capabilities, platform
+behavior, original research, and other volatile facts:
+
+- label it as **Fact**, **Observation**, **Inference**, or **Hypothesis**;
+- record source URL, source role, source owner, publication/update date, last-verified date,
+  scope, methodology, denominator, and limitations;
+- verify arithmetic, units, sample window, locale, model/product surface, plan, and region;
+- reject causal wording when the evidence only shows timing or correlation;
+- do not treat a vendor's dashboard as proof of another platform's internal implementation;
+- do not treat a GitHub domain, search-index hit, or HTTP 200 as proof of page authority.
+
+For retrieval-oriented pages, inspect server-visible answer text, title/H1/description,
+truthful structured data, author/date fields where appropriate, canonical/robots/sitemap,
+internal links, hreflang, and self-contained source-linked paragraphs. Link counts alone
+do not measure evidence coverage.
+
+If fanout data is available, compare broad discovery, branded/official, and domain-scoped
+queries. Keep retrieved, cited, and clicked URLs separate. Do not assume a literal `site:`
+token is the internal API syntax, that domain-scoped queries run after broad discovery, or
+that the change improves answer quality without outcome metrics.
+
+Read `references/evidence-and-retrieval.md` for the claim matrix, source-role rules,
+fanout observation fields, and retrieval-readiness checklist.
 
 ## Lower-level tools
 
@@ -134,6 +161,9 @@ Read `references/configuration.md` when you need project-level defaults.
 
 Read `references/source-tiers.md` when you need to decide whether a citation is acceptable.
 
+Read `references/evidence-and-retrieval.md` for platform-behavior data, large numerical
+claims, volatile product facts, or GEO information architecture.
+
 ## Verdict rules
 
 Read `references/verdict-rules.md` when you need to tune PASS / FAIL / REVISE behavior.
@@ -147,6 +177,10 @@ Read `references/example-report.md` for a real QA report with annotations on how
 The `seo_qa_runner.py` JSON output includes a `llm_review_required` flag and a `llm_review_items` list. These identify checks that scripts cannot resolve deterministically — keyword intent alignment, borderline source quality, word count near thresholds, and SERP overlap edge cases.
 
 When `llm_review_required` is `true`, read `llm_review_items` and apply editorial judgment before issuing a final verdict. Do not pass or fail on these items automatically.
+
+Evidence provenance, causal language, observation scope, and retrieval-readiness are
+semantic review items. Record the decision and supporting evidence in the report; do not
+silently convert an unverified observation into a PASS.
 
 ## Design intent
 
