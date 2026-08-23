@@ -1,13 +1,8 @@
 ---
 name: seo-geo-qa
-displayName: SEO Content QA
 description: "Check blog posts and articles before publishing, and audit live pages after publishing. Finds broken links, weak sources, missing SEO elements, and citation problems. Post-publish check runs 251 SEO rules via SEOmator CLI and adds custom checks for llms.txt, hreflang, and Core Web Vitals. Use when: reviewing a draft, auditing content quality, checking if links still work, verifying sources are credible, running pre-publish QA, or doing post-publish page checks. Also triggers on: 'check this article', 'verify my links', 'review before publishing', 'content audit', 'source quality check', 'are my links working', 'SEO review', 'pre-publish checklist', 'audit live page', 'check published page'. Generates markdown+JSON reports with PASS/FAIL verdict."
-tags:
-  - seo
-  - content-qa
-  - links
-  - citations
-  - publishing
+metadata:
+  short-description: SEO content QA
 ---
 
 # SEO Content QA
@@ -53,9 +48,19 @@ python3 skills/seo-geo-qa/scripts/seo_qa_runner.py path/to/article.md --keyword 
 1. Run `seo_qa_runner.py` on the draft.
 2. Read the markdown report for the human audit trail.
 3. Use the JSON report for automation or later aggregation.
-4. Fix critical issues first.
-5. Re-run until the article reaches PASS (or REVISE in writer mode).
-6. After publishing, run `post_publish_check.py` on the live URL.
+4. Read `references/snippet-long-tail-upgrades.md` when reviewing titles, descriptions,
+   long-tail coverage, multilingual snippets, or an existing page with GSC data.
+5. Fix critical issues first.
+6. Re-run until the article reaches PASS (or REVISE in writer mode).
+7. After publishing, run `post_publish_check.py` on the live URL.
+
+## Snippet and long-tail review
+
+Review the final server-rendered title after templates add brand or category suffixes, not only
+the source frontmatter. Preserve a promising title when search data is sparse, map entities to
+user jobs in descriptions instead of listing every entity, and keep the opening answer concise,
+decision-oriented, and explicit about material caveats. Use
+`references/snippet-long-tail-upgrades.md` for the full evidence and change-management method.
 
 ## Lower-level tools
 
