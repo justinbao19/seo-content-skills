@@ -4,10 +4,12 @@ Justin 于 2026-09-21 确认：个人仓库与 AIHubMix 的对应 Skill 双向�
 
 ## Mapping
 
-| Skill | 本仓库路径 | 团队入口 | 其他个人入口 |
+| Skill | 本仓库路径 | 团队入口 | 个人历史入口（已归档） |
 | --- | --- | --- | --- |
-| `seo-blog-writer` | `seo-blog-writer/` | `AIhubmix/product-skills:skills/seo-blog-writer/` | `justinbao19/blog-writing-skill` |
-| `seo-geo-qa` | `seo-geo-qa/` | `AIhubmix/product-skills:skills/seo-geo-qa/` | `justinbao19/seo-geo-qa-skill` |
+| `seo-blog-writer` | `seo-blog-writer/` | `AIhubmix/product-skills:skills/seo-blog-writer/` | `justinbao19/blog-writing-skill`（只读） |
+| `seo-geo-qa` | `seo-geo-qa/` | `AIhubmix/product-skills:skills/seo-geo-qa/` | `justinbao19/seo-geo-qa-skill`（只读） |
+
+两个独立仓库已归档，实际双向同步只在本仓库与 `AIhubmix/product-skills` 之间进行。归档仓库只保留来源，不写入、不自动解除归档；映射中 `sync_enabled: false` 的端跳过。
 
 完整映射与初始观察基线维护于 `AIhubmix/product-skills` 的 `skill-sync.json`，流程在 `docs/skill-sync.md`；该仓库为私有仓库，需读取权限。未列出的 Skills 不自动复制到其他仓库，新增绑定时核实真实路径。
 
