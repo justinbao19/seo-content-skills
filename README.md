@@ -165,3 +165,10 @@ See `seo-geo-qa/references/configuration.md` for all options.
 ## License
 
 MIT
+
+
+## Bidirectional Skill maintenance
+
+This repository and the mapped Skills in `AIhubmix/product-skills` are maintained in both directions. When an Agent changes a mapped Skill here or there, it must check the other endpoints, merge changes without overwriting local adaptations, validate, and report the corresponding commits or PRs. See [AGENTS.md](AGENTS.md) for paths and the maintenance procedure.
+
+This is an Agent-assisted workflow, not an installed background synchronizer. Existing snapshots differ; they are not claimed to be identical. Manual GitHub edits do not propagate until the synchronization workflow is executed. Organization-private material must not be copied to public repositories.
