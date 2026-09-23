@@ -13,8 +13,8 @@ Session 1 — Write + Review
 ─────────────────────────────────────────────────────
 content-production   ← entry point, orchestrates everything
   │
-  ├─ seo-blog-writer  ← automated research + writing (Phase 0–4)
-  │    └─ Decision-Grade Quality Gate (before delivery)
+  ├─ seo-blog-writer  ← research, bilingual writing, whole-piece editing
+  │    └─ Evidence and reader-decision review before delivery
   │
   └─ content-qa       ← LLM review agent (spawned after draft)
        └─ seo-geo-qa scripts ← automated link/source/SERP checks (Step 0)
@@ -30,12 +30,12 @@ Session 3 — Post-Publish Verification
 
 ## The Four Skills
 
-### 1. `seo-blog-writer` — Automated SEO Writing
-Fully automated article production. Give it a topic and domain — it handles keyword research, competitive analysis, writing, link verification, and delivery.
+### 1. `seo-blog-writer` — English and Chinese SEO Writing
+Researches and drafts an article for a topic and target site, then edits the whole piece for reader value, factual support, and natural English or Chinese expression. It can draw editorial methods from genre-matched blogs without copying prose.
 
-- **Modes:** Express (5-10 min) / Standard (15-20 min) / Expert (25-35 min)
-- **Output:** Article + QA report + schema markup + promotion checklist
-- **Gate:** Decision-Grade Quality Gate before delivery (exclusion boundaries, ranking fallback, decision engine, convergence summary)
+- **Depth:** Adjust research to the task and available evidence; modes are optional, not fixed time or quality scores.
+- **Output:** Article and relevant research / QA notes; schema and promotion suggestions only when applicable.
+- **Gate:** Verify claims and make comparisons useful for a reader's decision; do not force a winner, FAQ, or target word count.
 
 ```
 topic: "best AI email apps 2026"
@@ -134,7 +134,6 @@ Create a `seo-qa-config.json` for project defaults:
 {
   "siteDomain": "yoursite.com",
   "reportDir": "qa-reports",
-  "minFaqCount": 2,
   "minExternalLinks": 5,
   "maxTierD": 1,
   "psiApiKey": "YOUR_KEY",
@@ -150,11 +149,11 @@ See `seo-geo-qa/references/configuration.md` for all options.
 
 | Feature | This Suite | Typical SEO Tools |
 |---|---|---|
-| GEO / AI search optimization | ✅ Answer-first structure, standalone passages, AEO signals | ❌ |
-| AI writing pattern detection | ✅ 20+ banned words/phrases | ❌ |
+| GEO / AI search usefulness | ✅ Clear answers, sources, and context where relevant | ❌ |
+| Natural English and Chinese editing | ✅ Genre-aware voice and meaning-first localization | ❌ |
 | Source quality tiers (TIER-A to D) | ✅ Citation credibility grading | ❌ |
 | SERP gap analysis | ✅ vs top 5 competitors | Partial |
-| Decision-grade content gate | ✅ Exclusion boundaries, decision engine, convergence | ❌ |
+| Decision-useful comparisons | ✅ Criteria, tradeoffs, and conditional guidance | ❌ |
 | `llm_review_required` flag | ✅ Scripts flag what needs editorial judgment | ❌ |
 | Post-publish: 251 SEO rules | ✅ via SEOmator | Paid tools only |
 | Post-publish: llms.txt + hreflang + CWV | ✅ Custom checks | Partial |

@@ -1,0 +1,7 @@
+interface:
+  display_name: "SEO Blog Writer"
+  short_description: "Research and write natural English or Chinese SEO articles"
+  brand_color: "#C2410C"
+  default_prompt: "Use $seo-blog-writer to research, write, and edit a natural English or Chinese SEO article for the target site."
+policy:
+  allow_implicit_invocation: true

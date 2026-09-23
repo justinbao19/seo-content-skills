@@ -19,7 +19,7 @@ Never deliver a first draft directly. Always spawn a review agent.
 
 ### Step 1: Produce
 Write the content using the appropriate skill:
-- **SEO blog articles** → `seo-blog-writer/SKILL.md` (fully automated: keyword research → competitive analysis → write → QA → delivery package). Mandatory dependency: `heavy-task-protocol/SKILL.md` — load it first for checkpoint/resume safety.
+- **SEO blog articles** → `seo-blog-writer/SKILL.md` (research → native-language draft → whole-piece edit → factual and format QA). Save substantial milestones for resumption; no separate protocol Skill is required.
 - **Marketing copy** → your copywriting skill
 - **Comparison pages** → your competitor-alternatives skill
 - **Social posts** → your social-content skill
@@ -58,12 +58,12 @@ Verdict:
 
 ### SEO Blog Pipeline (Full Lifecycle)
 
-**Session 1 — Write + QA** (heavy task, checkpoint protocol required):
+**Session 1 — Write + QA**:
 ```
-Load heavy-task-protocol → Load seo-blog-writer
-→ Phase 0: Context discovery + confirmation gate
-→ Phase 1–4: Research, write, QA, iterate
-→ Decision-Grade Quality Gate (before Phase 5)
+Load seo-blog-writer
+→ Understand reader, intent, evidence, and language
+→ Draft and edit the whole article in the target language
+→ Check factual support, useful decisions, links, and format
 → Write draft + QA report to disk
 → Spawn content-qa review agent
 → Revise until PASS
@@ -94,19 +94,17 @@ Run post_publish_check.py on live URL → report verdict
 **Checklist:**
 - [ ] All external links verified (no 404/403)
 - [ ] All internal links point to real pages on your domain
-- [ ] Word count meets target (2500-3500 for comparison articles)
-- [ ] Title includes primary keyword
-- [ ] Meta description under 160 chars, includes keyword
+- [ ] The article has the depth its reader and evidence require
+- [ ] Title and description accurately describe the page in the reader's language
 - [ ] H2/H3 structure is logical
-- [ ] Comparison table present and accurate
+- [ ] Comparisons have explicit criteria and evidence-backed tradeoffs where relevant
 - [ ] Product info is accurate (check product/ context)
 - [ ] Competitor info is current (pricing, features)
 - [ ] No brand voice violations (check brand/ context)
-- [ ] FAQ section present (for schema markup)
-- [ ] Internal links to other blog posts included
-- [ ] CTA present
+- [ ] FAQ, internal links, and CTA are present when they help the reader or the destination requires them
 - [ ] No fluff paragraphs
-- [ ] Decision-Grade Quality Gate passed (exclusion boundaries, ranking fallback, decision engine, convergence summary)
+- [ ] The piece helps the reader decide or act without forcing an unsupported winner
+- [ ] English voice or Chinese localization reads naturally across the whole article
 
 ### Social Post (X / LinkedIn)
 **Reference docs:**
