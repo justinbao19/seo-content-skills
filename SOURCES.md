@@ -1,0 +1,5 @@
+# Distribution sources
+
+2026-10-06 consolidation: generic public SEO/content resources maintained from justinbao19/seo-content-skills@717a9aecaf794ca209a19cfc14f0dff68cf4a3bf, maintainer installed improvements, and portable QA fixes from AIhubmix/product-skills@bb039b32528ee335535b739a8f6101dbea4ca996. The private agent-skills repository is the new personal maintenance source; only the four existing generic public skill packages are distributed here. No team entry, organizational PRD, task, credentials or unrelated private skill is included.
+
+QA combines CJK question headings, relative internal link counts and explicit image policy with the existing team's JSON/report-path/domain/no-jina fixes. Full post-publish integrations remain conditional and were not tested against live SEOmator or PageSpeed services. Editorial review and orchestration use the requested scope, with counts and style patterns treated as diagnostics rather than universal rejection gates. Fixed baseline and target verification are recorded in sync-map.json. Sync id: skill-consolidation-20261006.

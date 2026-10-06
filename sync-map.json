@@ -1,0 +1,132 @@
+{
+  "schema_version": 1,
+  "mode": "agent-assisted-bidirectional",
+  "automatic_trigger_installed": false,
+  "policy": "docs/sync.md",
+  "skills": [
+    {
+      "name": "seo-blog-writer",
+      "status": "prepared-awaiting-remote-verification",
+      "last_sync_id": "skill-consolidation-20261006",
+      "endpoints": [
+        {
+          "repository": "justinbao19/agent-skills",
+          "branch": "main",
+          "path": "skills/seo-blog-writer",
+          "observed_commit": "4a297bfa4cc14abf6b0a9144cc207b330c5d3c6b",
+          "sync_enabled": true,
+          "role": "active-personal-source"
+        },
+        {
+          "repository": "AIhubmix/product-skills",
+          "branch": "main",
+          "path": "skills/seo-blog-writer",
+          "observed_commit": "bb039b32528ee335535b739a8f6101dbea4ca996",
+          "sync_enabled": true,
+          "role": "active"
+        },
+        {
+          "repository": "justinbao19/seo-content-skills",
+          "branch": "main",
+          "path": "seo-blog-writer",
+          "observed_commit": "717a9aecaf794ca209a19cfc14f0dff68cf4a3bf",
+          "sync_enabled": false,
+          "role": "compatibility-distribution",
+          "distribution_enabled": true
+        },
+        {
+          "repository": "justinbao19/blog-writing-skill",
+          "branch": "main",
+          "path": ".",
+          "observed_commit": "e9442c9b9bc39f758449199cfcca70385d8aa1aa",
+          "sync_enabled": false,
+          "role": "archived-reference"
+        }
+      ],
+      "adaptation_files": {
+        "AIhubmix/product-skills": [
+          "SKILL.md",
+          "agents/openai.yaml",
+          "references/workflow.md"
+        ]
+      }
+    },
+    {
+      "name": "seo-geo-qa",
+      "status": "prepared-awaiting-remote-verification",
+      "endpoints": [
+        {
+          "repository": "justinbao19/agent-skills",
+          "branch": "main",
+          "path": "skills/seo-geo-qa",
+          "observed_commit": "4a297bfa4cc14abf6b0a9144cc207b330c5d3c6b",
+          "sync_enabled": true,
+          "role": "active-personal-source"
+        },
+        {
+          "repository": "AIhubmix/product-skills",
+          "branch": "main",
+          "path": "skills/seo-geo-qa",
+          "observed_commit": "bb039b32528ee335535b739a8f6101dbea4ca996",
+          "sync_enabled": true,
+          "role": "active"
+        },
+        {
+          "repository": "justinbao19/seo-content-skills",
+          "branch": "main",
+          "path": "seo-geo-qa",
+          "observed_commit": "717a9aecaf794ca209a19cfc14f0dff68cf4a3bf",
+          "sync_enabled": false,
+          "role": "compatibility-distribution",
+          "distribution_enabled": true
+        },
+        {
+          "repository": "justinbao19/seo-geo-qa-skill",
+          "branch": "main",
+          "path": ".",
+          "observed_commit": "401a640f5f5e6cb77a0d050cc146e1dc9e3ba6ee",
+          "sync_enabled": false,
+          "role": "archived-reference"
+        }
+      ],
+      "last_sync_id": "skill-consolidation-20261006",
+      "adaptation_files": {
+        "AIhubmix/product-skills": [
+          "SKILL.md",
+          "agents/openai.yaml"
+        ]
+      }
+    },
+    {
+      "name": "aihubmix-product-ux",
+      "status": "personal-endpoint-unbound",
+      "endpoints": [
+        {
+          "repository": "AIhubmix/product-skills",
+          "branch": "main",
+          "path": "skills/aihubmix-product-ux",
+          "observed_commit": "9a05357fbd007993ca237583074680599efc104e",
+          "sync_enabled": true,
+          "role": "active"
+        }
+      ]
+    }
+  ],
+  "baseline_note": "Baseline commits identify verified content snapshots, not identical entry files. Team SKILL.md, agents metadata and writer workflow retain adaptation; shared files have independent SHA-256 baselines. No background trigger is installed.",
+  "scope": [
+    "SKILL.md",
+    "agents/",
+    "references/",
+    "scripts/",
+    "assets/"
+  ],
+  "excluded": [
+    "repository-level README.md",
+    "repository-level AGENTS.md",
+    "repository-level configuration",
+    "credentials",
+    "article outputs",
+    "private task documents"
+  ],
+  "last_migration_id": "skill-consolidation-20261006"
+}

@@ -1,175 +1,26 @@
 # SEO Content Skills
 
-A complete SEO content production suite for AI agents. Four skills that cover the full lifecycle — from writing to QA to post-publish verification.
+Public compatibility distribution of four independently installable content skills. Personal maintenance now lives in [agent-skills](https://github.com/justinbao19/agent-skills) (private); this repository preserves its original public paths and installation commands.
 
-Works with [Claude Code](https://claude.ai/code), [OpenClaw](https://openclaw.ai), and any agent runtime that supports `SKILL.md`.
+| Skill | Use |
+| --- | --- |
+| seo-blog-writer | Research, natural bilingual article writing and revision |
+| seo-geo-qa | Draft diagnostics and live-page technical checks |
+| content-qa | Evidence, reader value, language and destination review |
+| content-production | Coordinate a requested full content workflow |
 
----
-
-## How They Fit Together
-
-```
-Session 1 — Write + Review
-─────────────────────────────────────────────────────
-content-production   ← entry point, orchestrates everything
-  │
-  ├─ seo-blog-writer  ← research, bilingual writing, whole-piece editing
-  │    └─ Evidence and reader-decision review before delivery
-  │
-  └─ content-qa       ← LLM review agent (spawned after draft)
-       └─ seo-geo-qa scripts ← automated link/source/SERP checks (Step 0)
-
-Session 2 — Publish (human)
-
-Session 3 — Post-Publish Verification
-─────────────────────────────────────────────────────
-  seo-geo-qa/scripts/post_publish_check.py ← 251-rule technical audit
-```
-
----
-
-## The Four Skills
-
-### 1. `seo-blog-writer` — English and Chinese SEO Writing
-Researches and drafts an article for a topic and target site, then edits the whole piece for reader value, factual support, and natural English or Chinese expression. It can draw editorial methods from genre-matched blogs without copying prose.
-
-- **Depth:** Adjust research to the task and available evidence; modes are optional, not fixed time or quality scores.
-- **Output:** Article and relevant research / QA notes; schema and promotion suggestions only when applicable.
-- **Gate:** Verify claims and make comparisons useful for a reader's decision; do not force a winner, FAQ, or target word count.
-
-```
-topic: "best AI email apps 2026"
-domain: "https://yoursite.com"
-mode: "standard"
-```
-
-### 2. `content-qa` — LLM Content Review Agent
-Ruthless, objective QA reviewer. Runs automated checks first (via seo-geo-qa scripts), then applies editorial judgment. Outputs PASS/FAIL with specific, actionable fix requirements.
-
-- **Supports:** SEO blog, ad copy, social post, email sequence, landing page
-- **Scoring:** SEO quality score (0-100) for blog articles
-- **Max rounds:** 3, then escalates to human
-
-### 3. `seo-geo-qa` — Technical SEO QA Scripts
-Python script suite for deterministic checks. No LLM guessing on things scripts can measure precisely.
-
-**Pre-publish (on draft markdown):**
-```bash
-python3 seo-geo-qa/scripts/seo_qa_runner.py article.md --keyword "best email apps"
-```
-- Link liveness + source quality (TIER-A through TIER-D)
-- SERP gap analysis vs top competitors
-- FAQ count, word count, internal/external link counts
-- `llm_review_required` flag: identifies what needs editorial judgment
-
-**Post-publish (on live URL):**
-```bash
-python3 seo-geo-qa/scripts/post_publish_check.py https://yoursite.com/blog/slug
-```
-- SEOmator CLI: 251 rules across 20 categories (Core SEO, Performance, Security, Schema, hreflang, AI/GEO Readiness…)
-- Custom checks: llms.txt existence, hreflang self-reference, PageSpeed Insights CWV
-- Verdict: PASS / WARN / FAIL
-
-### 4. `content-production` — Orchestration Layer
-Thin orchestrator that chains the other three skills into a complete Produce → Review → Revise → Deliver workflow. The entry point for any content task.
-
----
-
-## Installation
+Install an entire selected skill directory, including references and scripts, into the host's skill location. Existing local edits must be checked and backed up before replacement. Each skill works to its requested scope; a small edit does not trigger the full workflow.
 
 ```bash
-# Clone the suite
 git clone https://github.com/justinbao19/seo-content-skills.git
-
-# Install SEOmator CLI (required for post-publish checks)
-npm install -g @seomator/seo-audit
-
-# Verify setup
-seomator self doctor
-python3 --version  # 3.10+ required
+cd seo-content-skills
+python3 seo-geo-qa/scripts/seo_qa_runner.py /path/to/article.md --skip-serp --stdout-json
+python3 seo-geo-qa/scripts/post_publish_check.py https://example.com/blog/post --no-seomator --json
+python3 -m unittest discover -s tests -v
 ```
 
----
+SEO QA requires Python 3.10+ and curl. Network checks, optional Jina, SEOmator and PageSpeed have documented dependencies and coverage limits. WebP is a project-specific policy enabled with `--require-webp` or config `imageFormat: "webp"`; use `--public-root` for site-relative assets. Inspect verdict, issues and editorial review flags: exit 0 does not establish a passing article. Link liveness and internal scores do not prove claim support or ranking outcomes.
 
-## Requirements
+Writing and QA do not authorize publication. Read each SKILL.md for actual commands and scope. Source versions and adaptation are in [SOURCES.md](SOURCES.md); active maintenance and compatibility updates follow [AGENTS.md](AGENTS.md), [sync-map.json](sync-map.json) and [docs/sync.md](docs/sync.md). No background sync trigger is installed. Earlier independent repositories remain archived.
 
-| Tool | Required for | Notes |
-|---|---|---|
-| Python 3.10+ | seo-geo-qa scripts | Standard library only, no pip deps |
-| `curl` | Link verification | Must be in PATH |
-| Node.js 18+ + SEOmator CLI | Post-publish checks | `npm install -g @seomator/seo-audit` |
-| Network access to `r.jina.ai` | SERP analysis fallback | Browser rendering service for JS-heavy pages. Pass `--no-jina` to disable. |
-| PageSpeed Insights API key | Core Web Vitals (CWV) | Optional. Free key at [developers.google.com](https://developers.google.com/speed/docs/insights/v5/get-started) |
-
----
-
-## Usage
-
-### Full pipeline (via content-production)
-Load `content-production/SKILL.md` and say:
-```
-Write an SEO blog article about "best email apps for productivity" for https://yoursite.com
-```
-The orchestrator handles the rest.
-
-### Individual skills
-```bash
-# Write only
-# Load seo-blog-writer/SKILL.md → "Write a comparison article about [topic] for [domain]"
-
-# QA only (pre-publish)
-python3 seo-geo-qa/scripts/seo_qa_runner.py path/to/draft.md --keyword "your keyword"
-
-# Post-publish audit
-python3 seo-geo-qa/scripts/post_publish_check.py https://yoursite.com/blog/slug
-```
-
----
-
-## Configuration
-
-Create a `seo-qa-config.json` for project defaults:
-
-```json
-{
-  "siteDomain": "yoursite.com",
-  "reportDir": "qa-reports",
-  "minExternalLinks": 5,
-  "maxTierD": 1,
-  "psiApiKey": "YOUR_KEY",
-  "seomatorCategories": ["core", "technical", "schema", "ai-geo"]
-}
-```
-
-See `seo-geo-qa/references/configuration.md` for all options.
-
----
-
-## What Makes This Different
-
-| Feature | This Suite | Typical SEO Tools |
-|---|---|---|
-| GEO / AI search usefulness | ✅ Clear answers, sources, and context where relevant | ❌ |
-| Natural English and Chinese editing | ✅ Genre-aware voice and meaning-first localization | ❌ |
-| Source quality tiers (TIER-A to D) | ✅ Citation credibility grading | ❌ |
-| SERP gap analysis | ✅ vs top 5 competitors | Partial |
-| Decision-useful comparisons | ✅ Criteria, tradeoffs, and conditional guidance | ❌ |
-| `llm_review_required` flag | ✅ Scripts flag what needs editorial judgment | ❌ |
-| Post-publish: 251 SEO rules | ✅ via SEOmator | Paid tools only |
-| Post-publish: llms.txt + hreflang + CWV | ✅ Custom checks | Partial |
-| Zero hardcoded dependencies | ✅ Works for any site/industry/CMS | ❌ |
-
----
-
-## License
-
-MIT
-
-
-## Bidirectional Skill maintenance
-
-This repository and the mapped Skills in `AIhubmix/product-skills` are maintained in both directions. When an Agent changes a mapped Skill here or there, it must check the other endpoints, merge changes without overwriting local adaptations, validate, and report the corresponding commits or PRs. See [AGENTS.md](AGENTS.md) for paths and the maintenance procedure.
-
-This is an Agent-assisted workflow, not an installed background synchronizer. Existing snapshots differ; they are not claimed to be identical. Manual GitHub edits do not propagate until the synchronization workflow is executed. Organization-private material must not be copied to public repositories.
-
-The former standalone repositories `blog-writing-skill` and `seo-geo-qa-skill` are archived read-only references. Active bidirectional maintenance is between this suite and `AIhubmix/product-skills`; archived repositories are not write targets.
+The earlier README described the original SEO material as MIT, but its imported snapshot did not contain a complete LICENSE file. This migration adds no blanket license or expanded rights to mixed-source resources.

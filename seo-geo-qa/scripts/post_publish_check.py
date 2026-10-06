@@ -41,12 +41,18 @@ class PageParser(HTMLParser):
         self.robots: str | None = None
         self.json_ld_count = 0
         self.links: list[str] = []
+        self.article_depth = 0
+        self.images: list[str] = []
         self.hreflang_links: list[dict] = []  # [{href, hreflang}]
 
     def handle_starttag(self, tag, attrs):
         attrs = dict(attrs)
         tag = tag.lower()
-        if tag == "title":
+        if tag == "article":
+            self.article_depth += 1
+        elif tag == "img" and self.article_depth > 0 and attrs.get("src"):
+            self.images.append(attrs["src"])
+        elif tag == "title":
             self.in_title = True
         elif tag == "h1":
             self.in_h1 = True
@@ -72,7 +78,9 @@ class PageParser(HTMLParser):
 
     def handle_endtag(self, tag):
         tag = tag.lower()
-        if tag == "title":
+        if tag == "article":
+            self.article_depth = max(0, self.article_depth - 1)
+        elif tag == "title":
             self.in_title = False
         elif tag == "h1":
             self.in_h1 = False
@@ -623,6 +631,7 @@ def main():
     ap.add_argument("--no-seomator", action="store_true", help="Skip SEOmator, run custom checks only")
     ap.add_argument("--categories", help="Comma-separated SEOmator categories (default: all)")
     ap.add_argument("--config", help="Optional JSON config path")
+    ap.add_argument("--require-webp", action="store_true", help="Enforce WebP URLs for images inside article elements")
     args = ap.parse_args()
 
     # Load config
@@ -647,6 +656,11 @@ def main():
 
     # Basic checks (always run)
     basic, basic_issues = build_basic_checks(parser, args.url, status)
+    require_webp = args.require_webp or config.get("imageFormat") == "webp"
+    non_webp = [src for src in parser.images if not urlparse(src).path.lower().endswith(".webp") and not src.lower().startswith("data:image/webp")]
+    basic.update(image_count=len(parser.images), non_webp_images=non_webp)
+    if require_webp and non_webp:
+        basic_issues.append("required WebP image format: non-WebP article image URLs")
 
     # Layer 1: SEOmator
     seomator_result: dict = {}
@@ -693,7 +707,7 @@ def main():
         for kw in ("noindex", "http status", "missing <title>", "missing h1")
     )
     seo_score = seomator_result.get("score") if not seomator_result.get("_error") else None
-    if has_critical or (seo_score is not None and seo_score < 50):
+    if (require_webp and non_webp) or has_critical or (seo_score is not None and seo_score < 50):
         verdict = "FAIL"
     elif seo_score is not None and seo_score < 70:
         verdict = "WARN"

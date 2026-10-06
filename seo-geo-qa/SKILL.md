@@ -1,162 +1,87 @@
 ---
 name: seo-geo-qa
-description: "Check blog posts and articles before publishing, and audit live pages after publishing. Finds broken links, weak sources, missing SEO elements, and citation problems. Post-publish check runs 251 SEO rules via SEOmator CLI and adds custom checks for llms.txt, hreflang, and Core Web Vitals. Use when: reviewing a draft, auditing content quality, checking if links still work, verifying sources are credible, running pre-publish QA, or doing post-publish page checks. Also triggers on: 'check this article', 'verify my links', 'review before publishing', 'content audit', 'source quality check', 'are my links working', 'SEO review', 'pre-publish checklist', 'audit live page', 'check published page'. Generates markdown+JSON reports with PASS/FAIL verdict."
+description: 'Audit SEO article drafts and published pages: link availability, source
+  tiers, structure, SERP coverage, snippets and technical page checks. Produces reports
+  and flags editorial review. Use for checking an existing draft or live URL; use
+  seo-blog-writer to create an article.'
 metadata:
-  short-description: SEO content QA
+  short-description: SEO content QA and post-publication checks
 ---
 
 # SEO Content QA
 
-Use this skill to audit content reliability before or after publishing.
+Audit a saved draft or live page, keeping automatic measurements separate from editorial judgment. This Skill does not publish or rewrite an article unless requested.
 
-## Requirements
+## Inputs and requirements
 
-- **Python 3.10+** (scripts use modern type syntax)
-- `curl` available in PATH (for HTTP HEAD checks)
-- No pip dependencies for pre-publish scripts — standard library only
-- **Network access to `r.jina.ai`** — used as a fallback for SERP search and competitor page fetching via browser rendering (handles JavaScript-heavy pages). Pass `--no-jina` to disable if needed.
-- **Node.js 18+ + SEOmator CLI** — required for post-publish page checks (251 rules)
-  ```bash
-  npm install -g @seomator/seo-audit
-  seomator self doctor   # verify installation
-  ```
-  If SEOmator is not installed, `post_publish_check.py` automatically falls back to basic checks (title / H1 / meta / canonical) and prints an install prompt.
-- **PageSpeed Insights API key** — optional, enables Core Web Vitals field data (LCP / CLS / INP / FCP / TTFB). Pass via `--psi-key` or set in config.
+- Draft mode: article Markdown path; keyword for optional SERP analysis; site domain for internal-link classification; optional JSON config.
+- Live mode: the published URL; optional SEOmator installation and PageSpeed Insights key.
+- Python 3.10+ and `curl`; pre-publish scripts use only the Python standard library. Search / fetch checks require network access. For AIHubMix pass `--site-domain aihubmix.com` or the actual target site.
+- SERP analysis uses DuckDuckGo and may use Jina Reader (`r.jina.ai`) for public search / competitor URLs. Use `--no-jina` for direct HTTP only, or `--skip-serp` to omit SERP checks. Do not send internal or credential-bearing URLs to external reader services.
+- SEOmator is optional for expanded live-page audits. Missing installation falls back to basic checks; report that coverage limit. Optional PageSpeed data is skipped without a key. No SEOmator rule count is guaranteed across versions.
 
-## Quick start
+Commands below run from the `product-skills` checkout. If this Skill is installed on its own, use its actual `scripts/` directory instead of assuming the repository layout. Resolve input paths relative to the current working directory.
 
-Run the unified runner for normal draft review:
+## Draft review
 
 ```bash
-python3 skills/seo-geo-qa/scripts/seo_qa_runner.py path/to/article.md --keyword "best email apps"
+python3 skills/seo-geo-qa/scripts/seo_qa_runner.py /path/to/article.md \
+  --keyword "target keyword" --site-domain aihubmix.com
+
+# Use existing project defaults
+python3 skills/seo-geo-qa/scripts/seo_qa_runner.py /path/to/article.md \
+  --keyword "target keyword" --config /path/to/seo-qa-config.json
+
+# Skip public SERP access; still verifies article URLs over the network
+python3 skills/seo-geo-qa/scripts/seo_qa_runner.py /path/to/article.md \
+  --site-domain aihubmix.com --skip-serp
+
+# Return JSON on stdout only, without saving report files
+python3 skills/seo-geo-qa/scripts/seo_qa_runner.py /path/to/article.md \
+  --site-domain aihubmix.com --skip-serp --stdout-json
 ```
 
-If you know the site's main domain, pass it so internal vs external links are counted correctly:
+Default output: timestamped Markdown and JSON under `qa-reports/<article-stem>/` beside the article. `--report-dir` selects the exact output directory; config `reportDir` is relative to the invocation working directory and adds an article-slug subdirectory. See [configuration.md](references/configuration.md).
 
-```bash
-python3 skills/seo-geo-qa/scripts/seo_qa_runner.py path/to/article.md --keyword "best email apps" --site-domain example.com
-```
+1. Run the draft runner and read the latest report for this article revision.
+2. Address `critical_issues` first, then review warnings, unavailable checks and `llm_review_items`.
+3. Verify core claims against the actual cited sources, even when URLs are live and tiers are favorable. Automatic source tiers / SERP overlap are heuristics; document any evidence-backed editorial disagreement without altering the raw report.
+4. Hand concrete fixes to the writer, or fix them if authorized. `--mode writer` names fixable failures REVISE; it is not a passing verdict.
+5. Recheck the revised artifact. Cap write / QA iteration at three rounds, then report unresolved items rather than looping or hiding failures.
 
-If you want project defaults, pass a lightweight JSON config:
+## Verdicts and limitations
 
-```bash
-python3 skills/seo-geo-qa/scripts/seo_qa_runner.py path/to/article.md --keyword "best email apps" --config path/to/seo-geo-qa.json
-```
+Draft runner verdicts are PASS / FAIL; writer mode can return REVISE. Live checks can return PASS / WARN / FAIL. **Process exit code 0 only means the report ran**, not that the article passed. Automation must inspect the JSON verdict, critical issues, warnings and review flags.
 
-## Standard workflow
+Automatic PASS is not publication approval or proof of factual correctness. Editorial review covers search intent, source-to-claim fit, current price / feature claims, misleading tested / best claims and any skipped checks, in addition to flagged items. A blocked fetch is not proof that a link is dead or a source is unreliable.
 
-1. Run `seo_qa_runner.py` on the draft.
-2. Read the markdown report for the human audit trail.
-3. Use the JSON report for automation or later aggregation.
-4. Read `references/snippet-long-tail-upgrades.md` when reviewing titles, descriptions,
-   long-tail coverage, multilingual snippets, or an existing page with GSC data.
-5. Fix critical issues first.
-6. Re-run until the article reaches PASS (or REVISE in writer mode).
-7. After publishing, run `post_publish_check.py` on the live URL.
+Known upstream limits: word counts and SERP term overlap favor whitespace-separated languages; relative Markdown links are not included in URL checks; source allowlists are heuristic; live-page false-positive suggestions need inspection of the original SEOmator findings, not automatic acceptance. No full accessibility, browser-rendering, indexing or ranking guarantee follows from this audit.
+
+Read [source-tiers.md](references/source-tiers.md) for citation classification, [verdict-rules.md](references/verdict-rules.md) for decision interpretation, and [example-report.md](references/example-report.md) for an illustrative result.
 
 ## Snippet and long-tail review
 
-Review the final server-rendered title after templates add brand or category suffixes, not only
-the source frontmatter. Preserve a promising title when search data is sparse, map entities to
-user jobs in descriptions instead of listing every entity, and keep the opening answer concise,
-decision-oriented, and explicit about material caveats. Use
-`references/snippet-long-tail-upgrades.md` for the full evidence and change-management method.
+Read [snippet-long-tail-upgrades.md](references/snippet-long-tail-upgrades.md) for title / description, multilingual intent, opening-answer and GSC evidence reviews. Review final rendered metadata after site templates add suffixes; distinguish low data volume from evidence for a rewrite. Recommendations are hypotheses, not performance promises.
 
-## Lower-level tools
+## Standalone checks
 
-Use these only when debugging a specific failure mode.
-
-### Link/source verification
 ```bash
-python3 skills/seo-geo-qa/scripts/verify_links.py path/to/article.md
-python3 skills/seo-geo-qa/scripts/verify_links.py path/to/article.md --json
+python3 skills/seo-geo-qa/scripts/verify_links.py /path/to/article.md --site-domain aihubmix.com --json
+python3 skills/seo-geo-qa/scripts/serp_gap_analyzer.py "target keyword" /path/to/article.md --no-jina --json
 ```
 
-### SERP gap analysis
+SERP `--urls` accepts explicit public competitor URLs and skips search. It does not disable Jina unless `--no-jina` is also supplied. Individual link/source checks may still query public search for indexing evidence.
+
+## Post-publication checks
+
+Use only for a supplied live URL within the current task. The checker reads the page; it does not deploy it.
 
 ```bash
-# Auto-search (uses DuckDuckGo + Jina Reader fallback for browser-rendered content access)
-python3 skills/seo-geo-qa/scripts/serp_gap_analyzer.py "best email apps" path/to/article.md
+# Basic and custom checks, no SEOmator dependency
+python3 skills/seo-geo-qa/scripts/post_publish_check.py https://aihubmix.com/ --no-seomator --json
 
-# Supply competitor URLs directly (skips search, still uses Jina to fetch pages)
-python3 skills/seo-geo-qa/scripts/serp_gap_analyzer.py "best email apps" path/to/article.md --urls https://competitor1.com https://competitor2.com
-
-# Disable Jina (direct HTTP only, faster but may fail on JavaScript-rendered pages)
-python3 skills/seo-geo-qa/scripts/serp_gap_analyzer.py "best email apps" path/to/article.md --no-jina
-```
-
-**How the SERP search works:**
-1. Tries DuckDuckGo's HTML endpoint via direct HTTP (fast path)
-2. If blocked or returns no results, falls back to Jina Reader (`r.jina.ai`) which renders the page with a real browser and decodes DDG's redirect links
-3. Competitor pages are always fetched via Jina first (browser-rendered for reliable access), then falls back to direct HTTP
-
-### Post-publish page check
-
-Full audit (SEOmator 251 rules + custom checks for llms.txt / hreflang / CWV):
-
-```bash
-# Standard — SEOmator + custom checks
-python3 skills/seo-geo-qa/scripts/post_publish_check.py https://example.com/blog/post
-
-# With Core Web Vitals (requires PageSpeed Insights API key)
-python3 skills/seo-geo-qa/scripts/post_publish_check.py https://example.com/blog/post --psi-key YOUR_KEY
-
-# Scope SEOmator to specific categories (faster)
-python3 skills/seo-geo-qa/scripts/post_publish_check.py https://example.com/blog/post --categories core,technical,schema
-
-# Lightweight fallback — skip SEOmator, run custom checks only
-python3 skills/seo-geo-qa/scripts/post_publish_check.py https://example.com/blog/post --no-seomator
-
-# JSON output for automation
+# Include SEOmator when installed; see --help and installed CLI version
 python3 skills/seo-geo-qa/scripts/post_publish_check.py https://example.com/blog/post --json
 ```
 
-**What the post-publish check covers:**
-
-| Layer | Source | Checks |
-|---|---|---|
-| SEOmator | 251 rules / 20 categories | Core SEO, Performance, Links, Images, Security, Technical SEO, Schema, JS Rendering, Accessibility, Mobile, i18n, E-E-A-T, AI/GEO Readiness, … |
-| Custom | llms.txt | Existence + HTTP 200 at `/llms.txt` |
-| Custom | hreflang | Self-reference validation, return-link symmetry |
-| Custom (optional) | PageSpeed Insights API | LCP, CLS, INP, FCP, TTFB field data |
-
-## Report persistence
-
-The runner writes timestamped markdown + JSON reports by default.
-
-Default behavior:
-- saves to `qa-reports/<article-slug>/` next to the article
-- does not overwrite old reports
-- uses markdown for human review and JSON for machine state
-
-Override with `--report-dir` or config.
-
-## Configuration
-
-Read `references/configuration.md` when you need project-level defaults.
-
-## Source quality
-
-Read `references/source-tiers.md` when you need to decide whether a citation is acceptable.
-
-## Verdict rules
-
-Read `references/verdict-rules.md` when you need to tune PASS / FAIL / REVISE behavior.
-
-## Example output
-
-Read `references/example-report.md` for a real QA report with annotations on how to interpret each section.
-
-## LLM review items
-
-The `seo_qa_runner.py` JSON output includes a `llm_review_required` flag and a `llm_review_items` list. These identify checks that scripts cannot resolve deterministically — keyword intent alignment, borderline source quality, word count near thresholds, and SERP overlap edge cases.
-
-When `llm_review_required` is `true`, read `llm_review_items` and apply editorial judgment before issuing a final verdict. Do not pass or fail on these items automatically.
-
-## Design intent
-
-This skill is not a writing assistant. It is a reliability layer.
-
-Scripts handle deterministic checks (link liveness, source tiers, structural metrics).
-LLM handles semantic judgment only — and only for items explicitly listed in `llm_review_items`.
-Do not let LLM re-evaluate what scripts have already decided.
+The post-publish script writes its report to stdout; redirect it into the article output directory if persistence is needed. Optional config keys for SEOmator / PageSpeed apply to this script, not to the draft runner. The full SEOmator / PageSpeed integrations are environment-dependent; do not claim they ran when only fallback checks executed.

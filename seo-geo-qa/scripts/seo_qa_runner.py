@@ -8,6 +8,8 @@ from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
 
+from verify_links import normalize_domain
+
 def _find_skill_root() -> Path:
     """Walk up from this script to find the directory containing SKILL.md."""
     d = Path(__file__).resolve().parent
@@ -18,21 +20,13 @@ def _find_skill_root() -> Path:
     return Path(__file__).resolve().parent.parent  # fallback
 
 
-def _find_workspace_root(skill_root: Path) -> Path:
-    """Walk up from skill root to find workspace root (contains AGENTS.md or .git)."""
-    d = skill_root.parent
-    for _ in range(5):
-        if (d / "AGENTS.md").exists() or (d / ".git").exists():
-            return d
-        d = d.parent
-    return Path.cwd()  # fallback
-
-
 SKILL_ROOT = _find_skill_root()
-ROOT = _find_workspace_root(SKILL_ROOT)
+ROOT = Path.cwd().resolve()
 VERIFY = SKILL_ROOT / "scripts/verify_links.py"
 SERP = SKILL_ROOT / "scripts/serp_gap_analyzer.py"
 DEFAULT_REPORT_DIRNAME = "qa-reports"
+MARKDOWN_IMAGE_RE = re.compile(r"!\[[^\]]*\]\(\s*(?:<([^>]+)>|([^\s)]+))")
+FRONTMATTER_RE = re.compile(r"\A\s*---\s*\n(.*?)\n---\s*(?:\n|\Z)", re.DOTALL)
 
 
 def slugify(text: str) -> str:
@@ -63,7 +57,76 @@ def load_config(path: str | None) -> dict:
     return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
-def extract_basic_article_stats(text: str, site_domain: str | None = None) -> dict:
+def extract_cover_image(text: str) -> str | None:
+    match = FRONTMATTER_RE.search(text)
+    if not match:
+        return None
+    try:
+        frontmatter = json.loads(match.group(1))
+    except json.JSONDecodeError:
+        return None
+    cover = frontmatter.get("coverImage") if isinstance(frontmatter, dict) else None
+    return cover.strip() if isinstance(cover, str) and cover.strip() else None
+
+
+def is_webp_image(ref: str) -> bool:
+    if ref.lower().startswith("data:image/webp"):
+        return True
+    return urlparse(ref).path.lower().endswith(".webp")
+
+
+def _local_image_issue(ref: str, article_path: Path | None, public_root: Path | None) -> str | None:
+    parsed = urlparse(ref)
+    if parsed.scheme or parsed.netloc or parsed.path.startswith("data:"):
+        return None
+    if article_path is None:
+        return None
+    if parsed.path.startswith("/"):
+        if public_root is None:
+            return f"{ref} (public root required to verify asset)"
+        candidate = public_root / parsed.path.lstrip("/")
+    else:
+        candidate = article_path.parent / parsed.path
+    if not candidate.is_file():
+        return ref
+    if is_webp_image(ref):
+        try:
+            with candidate.open("rb") as asset:
+                header = asset.read(12)
+            if header[:4] != b"RIFF" or header[8:12] != b"WEBP":
+                return f"{ref} (invalid WebP bytes)"
+        except OSError:
+            return f"{ref} (unreadable WebP asset)"
+    return None
+
+
+def extract_image_stats(text: str, article_path: Path | None = None, public_root: Path | None = None) -> dict:
+    matches = MARKDOWN_IMAGE_RE.findall(text)
+    markdown_refs = [first or second for first, second in matches]
+    cover_image = extract_cover_image(text)
+    refs = []
+    for ref in [*markdown_refs, cover_image]:
+        if ref and ref not in refs:
+            refs.append(ref)
+    non_webp = [ref for ref in refs if not is_webp_image(ref)]
+    missing_local = []
+    for ref in refs:
+        issue = _local_image_issue(ref, article_path, public_root)
+        if issue:
+            missing_local.append(issue)
+    return {
+        "image_count": len(refs),
+        "webp_image_count": len(refs) - len(non_webp),
+        "image_references": refs,
+        "cover_image": cover_image,
+        "non_webp_images": non_webp,
+        "missing_local_images": missing_local,
+    }
+
+
+
+def extract_basic_article_stats(text: str, site_domain: str | None = None, article_path: Path | None = None, public_root: Path | None = None) -> dict:
+    site_domain = normalize_domain("//" + site_domain.strip().removeprefix("https://").removeprefix("http://")) if site_domain else None
     lines = text.splitlines()
     h1 = ""
     h2s = 0
@@ -78,13 +141,13 @@ def extract_basic_article_stats(text: str, site_domain: str | None = None) -> di
             h1 = s[2:].strip()
         elif s.startswith("## "):
             h2s += 1
-            if s.lstrip("# ").strip().endswith("?"):
+            if s.lstrip("# ").strip().endswith(("?", "？")):
                 faq_count += 1
         elif s.startswith("### "):
             h3s += 1
-            if s.lstrip("# ").strip().endswith("?"):
+            if s.lstrip("# ").strip().endswith(("?", "？")):
                 faq_count += 1
-        elif s.startswith("#") and s.endswith("?"):
+        elif s.startswith("#") and s.endswith(("?", "？")):
             # H4+ headings with questions also count
             faq_count += 1
         elif re.match(r"^\*{1,2}Q[\s:]", s):
@@ -93,14 +156,15 @@ def extract_basic_article_stats(text: str, site_domain: str | None = None) -> di
 
     urls = re.findall(r"https?://[^\s)\]>\"']+", text)
     for url in urls:
-        domain = urlparse(url).netloc.lower()
-        if site_domain and site_domain in domain:
+        domain = normalize_domain(url)
+        if site_domain and (domain == site_domain or domain.endswith("." + site_domain)):
             internal_links += 1
         else:
             external_links += 1
 
+    internal_links += len(re.findall(r"(?<!!)\[[^\]]+\]\((/[^)\s]+)\)", text))
     words = len(text.split())
-    return {
+    stats = {
         "h1": h1,
         "word_count": words,
         "h2_count": h2s,
@@ -109,6 +173,8 @@ def extract_basic_article_stats(text: str, site_domain: str | None = None) -> di
         "external_links": external_links,
         "internal_links": internal_links,
     }
+    stats.update(extract_image_stats(text, article_path=article_path, public_root=public_root))
+    return stats
 
 
 def build_llm_review_items(article: dict, link_report: dict, serp_report: dict | None) -> list[str]:
@@ -166,6 +232,12 @@ def determine_verdict(link_report: dict, serp_report: dict | None, article_stats
     if weak_sources:
         warnings["citation_risks"].append(f"{weak_sources} weak source(s) should be replaced if stronger evidence exists")
 
+    if config.get("imageFormat") == "webp":
+        if article_stats.get("non_webp_images"):
+            critical["seo_risks"].append("Required WebP image format: non-WebP references found")
+        if article_stats.get("missing_local_images"):
+            critical["seo_risks"].append("Required image assets missing, invalid, or unverified")
+
     min_faq_count = int(config.get("minFaqCount", 2))
     min_external_links = int(config.get("minExternalLinks", 5))
     max_tier_d = int(config.get("maxTierD", 1))
@@ -222,6 +294,7 @@ def render_markdown(report: dict) -> str:
     lines.append(f"- FAQ count: {snap['faq_count']}")
     lines.append(f"- Internal links: {snap['internal_links']}")
     lines.append(f"- External links: {snap['external_links']}")
+    lines.append(f"- Image references: {snap.get('image_count', 0)}; non-WebP: {len(snap.get('non_webp_images', []))}")
     lines.append("")
 
     lines.append("## Critical Issues")
@@ -319,6 +392,9 @@ def main() -> int:
     ap.add_argument("--config", help="Optional JSON config path")
     ap.add_argument("--site-domain", help="Primary site domain for internal link detection")
     ap.add_argument("--skip-serp", action="store_true")
+    ap.add_argument("--require-webp", action="store_true", help="Enforce the project WebP image policy")
+    ap.add_argument("--public-root", help="Filesystem root for site-relative image URLs")
+    ap.add_argument("--no-jina", action="store_true", help="Use direct HTTP only for SERP analysis")
     ap.add_argument("--serp-limit", type=int, default=5)
     ap.add_argument("--stdout-json", action="store_true")
     args = ap.parse_args()
@@ -327,7 +403,11 @@ def main() -> int:
     site_domain = args.site_domain or config.get("siteDomain")
     article_path = Path(args.article).resolve()
     text = article_path.read_text(encoding="utf-8")
-    article_stats = extract_basic_article_stats(text, site_domain=site_domain)
+    if args.require_webp:
+        config["imageFormat"] = "webp"
+    public_root_value = args.public_root or config.get("publicRoot")
+    public_root = Path(public_root_value).expanduser().resolve() if public_root_value else None
+    article_stats = extract_basic_article_stats(text, site_domain=site_domain, article_path=article_path, public_root=public_root)
     slug = article_path.stem
 
     verify_cmd = [sys.executable, str(VERIFY), str(article_path), "--json"]
@@ -341,7 +421,7 @@ def main() -> int:
         serp_report = run_json([
             sys.executable, str(SERP), args.keyword, str(article_path),
             "--limit", str(args.serp_limit), "--json"
-        ], allow_failure=True)
+        ] + (["--no-jina"] if args.no_jina else []), allow_failure=True)
 
     verdict, critical, warnings = determine_verdict(link_report, serp_report, article_stats, config)
     has_critical = bool(critical.get('seo_risks') or critical.get('citation_risks'))
@@ -368,9 +448,11 @@ def main() -> int:
         "serp_report": serp_report,
     }
 
+    image_gate_failed = config.get("imageFormat") == "webp" and bool(article_stats.get("non_webp_images") or article_stats.get("missing_local_images"))
+
     if args.stdout_json:
         print(json.dumps(report, ensure_ascii=False, indent=2))
-        return 0
+        return 1 if image_gate_failed else 0
 
     default_report_root = article_path.parent / DEFAULT_REPORT_DIRNAME
     config_report_dir = config.get("reportDir")
@@ -380,16 +462,16 @@ def main() -> int:
         (default_report_root / slugify(slug)).resolve()
     )
     report_dir.mkdir(parents=True, exist_ok=True)
-    ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+    ts = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
     json_path = report_dir / f"qa-{ts}.json"
     md_path = report_dir / f"qa-{ts}.md"
     json_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     md_path.write_text(render_markdown(report), encoding="utf-8")
 
-    print(f"Wrote: {md_path.relative_to(ROOT)}")
-    print(f"Wrote: {json_path.relative_to(ROOT)}")
+    print(f"Wrote: {md_path}")
+    print(f"Wrote: {json_path}")
     print(f"Verdict: {verdict}")
-    return 0
+    return 1 if image_gate_failed else 0
 
 if __name__ == "__main__":
     raise SystemExit(main())

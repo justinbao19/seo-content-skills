@@ -1,43 +1,49 @@
 # Configuration
 
-Use an optional JSON config file to set project defaults.
-
-## Example
+All scripts accept an optional `--config` JSON file. Pre-publish checks need no API keys.
 
 ```json
 {
-  "siteName": "Example Site",
-  "siteDomain": "example.com",
-  "reportDir": "qa-reports",
+  "siteDomain": "aihubmix.com",
   "minFaqCount": 2,
   "minExternalLinks": 5,
   "maxTierD": 1,
-  "tierADomains": ["mycompany.com", "docs.mycompany.com"],
-  "tierBDomains": ["partner-site.com"],
-  "brandDomains": ["mycompany.com"],
-  "psiApiKey": "YOUR_PAGESPEED_INSIGHTS_API_KEY",
-  "seomatorCategories": ["core", "technical", "schema", "ai-geo"],
-  "skipSeomator": false
+  "tierADomains": ["aihubmix.com", "docs.aihubmix.com"],
+  "brandDomains": ["aihubmix.com"]
 }
 ```
 
-## Fields
+These are editable defaults, not mandatory article quotas. First-party sources establish the publisher's own features / prices, not independent proof of quality or benchmark superiority.
 
-- `siteName` — optional metadata for your own reporting
-- `siteDomain` — used to distinguish internal vs external links
-- `reportDir` — report output root, relative to workspace root
-- `minFaqCount` — warning threshold for FAQ count (default: 2)
-- `minExternalLinks` — warning threshold for thin citation profiles (default: 5)
-- `maxTierD` — maximum allowed TIER-D sources before FAIL (default: 1)
-- `tierADomains` — additional domains to treat as TIER-A (first-party / official)
-- `tierBDomains` — additional domains to treat as TIER-B (reputable secondary)
-- `brandDomains` — domain roots for same-brand redirect detection (e.g., subdomains that should not count as "moved")
-- `psiApiKey` — PageSpeed Insights API key; enables CWV field data (LCP/CLS/INP/FCP/TTFB) in post-publish checks. Leave null to skip CWV. Get a free key at https://developers.google.com/speed/docs/insights/v5/get-started
-- `seomatorCategories` — limit SEOmator audit to specific categories for faster runs (e.g. `["core","technical","schema"]`). Omit for full 20-category audit. Valid values: `core`, `performance`, `links`, `images`, `security`, `technical`, `crawlability`, `schema`, `js`, `accessibility`, `content`, `social`, `eeat`, `url`, `redirects`, `mobile`, `i18n`, `html`, `ai-geo`, `legal`
-- `skipSeomator` — set `true` to disable SEOmator and run custom checks only (useful in environments without Node.js; default: false)
+## Draft runner and link verifier
 
-## Notes
+| Field | Behavior |
+| --- | --- |
+| `siteDomain` | Bare domain or site URL; host and its subdomains count as internal, similarly named external domains do not. |
+| `reportDir` | Draft runner only: absolute path or path relative to the command's working directory; an article-slug subdirectory is added. Omit to save beside the article. CLI `--report-dir` takes precedence and is the exact output directory. |
+| `minFaqCount` | Draft warning threshold; default 2. Adapt to article type. |
+| `minExternalLinks` | Draft warning threshold; default 5. Review evidence quality rather than padding counts. |
+| `maxTierD` | Draft critical threshold; default 1. Heuristic source classification still needs review. |
+| `tierADomains` / `tierBDomains` | Additional first-party / secondary source domains for the verifier. Use bare hostnames, no scheme or path. |
+| `brandDomains` | Bare domain roots for within-brand redirect recognition. |
+| `siteName` | Reserved metadata; currently not consumed by the scripts. |
 
-- The runner works without config.
-- Keep config small. If your config becomes huge, your process is probably overfitted.
-- Prefer stable project defaults over article-by-article micromanagement.
+`--mode writer` changes FAIL to REVISE. `--skip-serp` omits SERP checks, not article link requests. `--no-jina` disables Jina within SERP analysis. `--stdout-json` writes only JSON stdout and does not persist reports. No config setting overrides those flags.
+
+## Live-page checker only
+
+| Field | Behavior |
+| --- | --- |
+| `skipSeomator` | Default false; true uses basic / custom checks only. CLI `--no-seomator` also disables it. |
+| `seomatorCategories` | Optional category list passed to the installed SEOmator CLI. Supported names depend on that version; CLI `--categories` overrides the list. |
+| `psiApiKey` | Optional PageSpeed Insights key; omit to skip that service. Store credentials in an untracked local config, never in this repository. |
+
+These fields are used only by `post_publish_check.py`; the draft runner does not run SEOmator or PageSpeed. Live-page reports go to stdout; `reportDir` does not apply.
+
+## Failure and measurement interpretation
+
+Search / network failures reduce coverage. Keep warnings and missing evidence in the final review. Link liveness, domain tiers, word counts and term overlap cannot alone prove factual reliability, content quality or likely ranking. Process success and editorial approval are separate.
+
+## Optional image policy
+
+`imageFormat: "webp"` enforces local WebP headers and Markdown/frontmatter image references. `publicRoot` resolves site-relative paths, relative to invocation cwd when not absolute. CLI alternatives: `--require-webp --public-root /path/to/public`. No image format requirement is inferred from a repository name or article path. Published checks inspect `<article>` image URL formats only; decoding/MIME and actual image delivery need separate validation.

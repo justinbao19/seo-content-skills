@@ -1,0 +1,4 @@
+interface:
+  display_name: "SEO Blog QA"
+  short_description: "审查 SEO 草稿的链接、来源、结构和搜索意图，并检查发布后的页面"
+  default_prompt: "使用 $seo-geo-qa，审查指定文章或已发布页面，运行适用检查并区分自动结果、人工复核项和未覆盖项。"

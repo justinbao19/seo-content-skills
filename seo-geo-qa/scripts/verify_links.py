@@ -85,7 +85,7 @@ class LinkResult:
 
 
 def normalize_domain(url: str) -> str:
-    host = urlparse(url).netloc.lower()
+    host = (urlparse(url).hostname or "").lower().rstrip(".")
     return host[4:] if host.startswith("www.") else host
 
 
@@ -182,9 +182,9 @@ def same_brand_domain(a: str, b: str) -> bool:
 def classify_source_quality(domain: str, body: str, url: str) -> tuple[str, str, List[str]]:
     notes = []
     path = urlparse(url).path.lower()
-    if domain in TIER_A_DOMAINS or any(domain.endswith(d) for d in TIER_A_DOMAINS):
+    if domain in TIER_A_DOMAINS or any(domain.endswith("." + d) for d in TIER_A_DOMAINS):
         return "skip", "TIER-A", ["official / first-party / primary source"]
-    if domain in TIER_B_DOMAINS or any(domain.endswith(d) for d in TIER_B_DOMAINS):
+    if domain in TIER_B_DOMAINS or any(domain.endswith("." + d) for d in TIER_B_DOMAINS):
         if len(body) > 500:
             return "strong", "TIER-B", ["reputable editorial / research / established secondary source"]
         return "usable", "TIER-B", ["trusted editorial domain; weak extraction but domain reputation override applied"]
@@ -362,19 +362,16 @@ def main():
 
     global _SITE_DOMAIN
     if args.site_domain:
-        _SITE_DOMAIN = args.site_domain.lower()
+        _SITE_DOMAIN = normalize_domain("//" + args.site_domain.strip().removeprefix("https://").removeprefix("http://"))
     elif args.config:
         try:
             cfg = json.loads(Path(args.config).read_text(encoding="utf-8"))
-            _SITE_DOMAIN = cfg.get("siteDomain", "").lower()
+            _SITE_DOMAIN = normalize_domain("//" + cfg.get("siteDomain", "").strip().removeprefix("https://").removeprefix("http://"))
         except Exception:
             pass
 
     text = Path(args.input).read_text(encoding="utf-8")
     urls = extract_urls(text)
-    if not urls:
-        print("No URLs found.")
-        return 0
 
     results = []
     for idx, url in enumerate(urls, 1):

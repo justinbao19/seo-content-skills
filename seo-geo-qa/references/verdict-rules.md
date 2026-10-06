@@ -2,6 +2,8 @@
 
 Use these as defaults, not dogma.
 
+The script verdict applies only to implemented automatic checks. Core-claim evidence and intent require editorial review, even when the script returns PASS. Keep the raw script result and the editorial conclusion separate; log evidence for any disagreement with heuristic thresholds. Exit code 0 means the report ran, not that content passed. REVISE is not a success state.
+
 ## FAIL
 
 Fail when any of the following is true:
